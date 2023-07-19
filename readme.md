@@ -19,6 +19,7 @@ At the moment the following languages are supported or planned:
 | Java | 15 | Completed with a few minor exceptions |
 | C | C11 | 90% but with some bugs to be fixed |
 | Python | 2, 3 | Todo |
+| Go |  | Todo |
 | C++ | 14 | Parser completed; WSIL translator not written yet |
 | C# | TBD | Todo |
 | JavaScript | TBD | Todo |
