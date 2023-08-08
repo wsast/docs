@@ -1,6 +1,6 @@
-#wSAST Changelog
+# wSAST Changelog
 
-##wSAST v0.1-alpha (release date 07-08-2023)
+## wSAST v0.1-alpha (release date 07-08-2023)
 
 * Fixed bug in `graph calls` feature which reversed the logic for the `--inclusive` flag.
 * Fixed bug in `paths` command which omitted a step in certain paths.
@@ -21,6 +21,6 @@
 * Added update file erasure on wSAST.exe launch.
 * Tested more thoroughly on Windows 11, Server 2016.
 
-##wSAST v0.1-alpha (release date 03-07-2023)
+## wSAST v0.1-alpha (release date 03-07-2023)
 
 * Initial release.
