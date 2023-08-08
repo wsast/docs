@@ -1,12 +1,12 @@
 # wSAST Changelog
 
 ## wSAST v0.1-alpha (release date 07-08-2023)
-
+* **Modified commonrules.xml to remove generic function rules by default as these produce a great volume of false positives - re-enable as needed.**
 * Fixed bug in `graph calls` feature which reversed the logic for the `--inclusive` flag.
 * Fixed bug in `paths` command which omitted a step in certain paths.
 * Fixed null pointer crash in Java parser handling module-info.java (now omitted from analysis).
 * Fixed support for Java interfaces containing classes (now promoted to WSIL classes).
-* Fixed bug where certain Java contextual keywords where forbidden as identifiers where valid.
+* Fixed bug where certain Java contextual keywords forbidden as identifiers were valid.
 * Fixed bug in `calls` feature where some calls from recursive functions were not listed.
 * Fixed exception in Java parser where `super` referenced missing super class.
 * Fixed a licensing issue affecting hosts running certain AV/EDR products.
