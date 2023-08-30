@@ -1,5 +1,26 @@
 # wSAST Changelog
 
+## wSAST v0.1-alpha (release date 25-08-2023)
+
+* Added a simple JSP-to-Java source processor
+* Fixed an infinite loop parsing java _Patterns_
+* Fixed a null pointer exception in the Common Rules Engine simple variable rule handling
+* Fixed a null pointer exception pruning variables from scope
+* Fixed a bug whereby class members may not have always have a scope attached
+* Fixed a complexity issue in Common Rules data rule processing and added regex timeout
+* Fixed a bug parsing java _record_ types nested within classes
+* Fixed a bug parsing certain Java method references
+* Fixed a bug in parse aborting and added parse timeout setting for Java parser
+* Fixed a bug in Java translation to WSIL where for loop update was placed outside of loop logic
+* Fixed a stack overflow exception in `graph calls --filter-root` with recursive functions
+* Fixed a bug in Common Rules Engine simple subscribers when source/sink were same expression
+* Changed Common Rules Engine simple variable sources to reduce false positives
+* Added a lock around Common Rules Engine simple subscriber file writing
+* Suppressed an error parsing annotation type definitions
+* Improved Java _record_ support (convert _RecordHeader_ to WSIL constructor)
+* Improved handling of Java static imports
+* Improved Java thread scheduling to allow for faster multi-file parse times
+
 ## wSAST v0.1-alpha (release date 07-08-2023)
 * **Modified commonrules.xml to remove generic function rules by default as these produce a great volume of false positives - re-enable as needed.**
 * Fixed bug in `graph calls` feature which reversed the logic for the `--inclusive` flag.
