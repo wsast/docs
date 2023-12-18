@@ -1,5 +1,20 @@
 # wSAST Changelog
 
+## wSAST v0.1-alpha (release date 18-12-2023)
+
+* Added support for annotation-based rules in Common Rules Engine
+* Added some further rules for Java (Spring framework rules)
+* Added filters for dataflow and static scans (both command-line and interactive)
+* Added maximum variable limit for expressions (default 500) to reduce memory usage
+* Fixed a bug where cross-class method calls would not re-scope this pointer correctly
+* Fixed a bug where function variables were not correctly created at function entrypoints
+* Fixed a bug in entrypoint discovery which would lose certain recursive function entrypoints
+* Fixed some flawed simple rules that would fail to match due to incorrect tags
+* Added a setting to dataflow scan relax the requirement that all traced parameters in a Common Rules Engine function sink must match
+* Added a setting to static scan to treat any traced parameter as dynamic (i.e. not a fixed value, like a static string or constant) reducing number of false positives
+* Added !regex exclusion filter to --sources parameter for wSAST.exe (e.g. `--sources=c:\src,!.*?test.*`)
+* Added instructions for self-service offline activation (`wSAST.exe activate --activation-id=offline`)
+
 ## wSAST v0.1-alpha (release date 25-08-2023)
 
 * Added a simple JSP-to-Java source processor

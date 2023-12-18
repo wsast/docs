@@ -46,19 +46,21 @@ The wSAST command line supports the following options:
       [activation-id] - The activation ID for the license
   dataflowscan
     Performs source-to-sink analysis of the specified sources; generates a report of results.
-      <sources>       - Paths (comma separated) to scan for source files.
+      <sources>       - Paths (comma separated) to scan for source files; !regex excludes path.
       <project>       - Name of project.
       [config]        - Path to wSAST configuration XML (default .\config.xml).
       [languages]     - Languages to scan (default: all).
+      [filter]        - Entrypoint name regexes to scan from (comma separated; multiple means OR, ! prefix means AND NOT).
   staticscan
     Perform static syntax tree analysis of the specified sources; generates a report of results.
-      <sources>       - Paths (comma separated) to scan for source files.
+      <sources>       - Paths (comma separated) to scan for source files; !regex excludes path.
       <project>       - Name of project.
       [config]        - Path to wSAST configuration XML (default .\config.xml).
       [languages]     - Languages to scan (default: all).
+      [filter]        - Entrypoint name regexes to scan from (comma separated; multiple means OR, ! prefix means AND NOT).
   interactive
     Perform interactive analysis of the specified sources.
-      <sources>       - Paths (comma separated) to scan for source files.
+      <sources>       - Paths (comma separated) to scan for source files; !regex excludes path.
       <project>       - Name of project.
       [config]        - Path to wSAST configuration XML (default .\config.xml).
       [languages]     - Languages to scan (default: all).
@@ -75,35 +77,43 @@ graph       Create graphviz DOT output from knowledge
     graph <type> [...]
         <type>          - classes, calls, local, ast
         [--filter=]     - comma separated regex of KDB entries (multiple means OR, ! prefix means AND NOT)
-        [--inclusive]   - include only filtered types as destinations from matches
+        [--inclusive]   - specifies that either source OR destination of a link can match filter
+        [--filter-root] - filter applies only to root code object (only: calls)
         [--highlight=]  - comma separated regex (multiple means OR, ! prefix meant AND NOT)
         [--entrypoints] - highlight entrypoints
         [--filename=]   - output file (in project directory)
-        [--tokens]      - print tokens in graph labels (only: local)
+        [--tokens]      - print tokens in graph labels (warning: this can be inaccurate for languages other than WSIL) (only: local)
         [--locs]        - print code filename and line/column info (only: ast)
+        [--ignorecase]  - filters are case insensitive
 kdbsearch   Search knowledge base entries
     kdbsearch <filter> [...]
         <filter>        - comma separated regex of KDB entries (multiple means OR, ! prefix means AND NOT)
         [types]         - [g]lobal, [n]amespace, [i]nterface, [cl]ass, [m]ethod, [co]nstructor, [b]lock, [v]ariable
+        [--ignorecase]  - filters are case insensitive
 astsearch    Search AST
     astsearch <filter> [...]
-        <search>        - comma separated regex (multiple means OR, ! prefix means AND NOT)
+        <filter>        - comma separated regex (multiple means OR, ! prefix means AND NOT)
         [types]         - [t]ype, [l]abel, [v]alue
         [--filter=]     - comma separated regex of KDB entries (multiple means OR, ! prefix means AND NOT)
+        [--ignorecase]  - filters are case insensitive
 calls       List calls to and from specific methods
     calls <direction> <path> [...]
         <direction>     - to, from
         <filter>        - comma separated regex of KDB method entries (multiple means OR, ! prefix means AND NOT)
         [--depth=]      - depth of calls to trace (default: 99999)
         [--locs=]       - number of surrounding lines of code to print (default 0)
+        [--ignorecase]  - filters are case insensitive
 paths       Find paths connecting functions
     paths <filter-start> <filter-end> [depth]
         <filter-start>  - comma separated regex of KDB entries (multiple means OR, ! prefix means AND NOT)
         <filter-end>    - comma separated regex of KDB entries (multiple means OR, ! prefix means AND NOT)
         [--depth=]      - depth of calls to trace (default: 99999)
         [--locs=]       - number of surrounding lines of code to print (default 0)
+        [--ignorecase]  - filters are case insensitive
 dfscan      Reload config and perform dataflow scan
+        [--filter=]     - comma separated regex of KDB entries (multiple means OR, ! prefix means AND NOT)
 sscan       Reload config and perform a static code scan
+        [--filter=]     - comma separated regex of KDB entries (multiple means OR, ! prefix means AND NOT)
 clear       Clear console.
 exit        Exit to console.
 ```
@@ -115,6 +125,8 @@ Since wSAST is designed to process fairly substantial amounts of code at runtime
 Where a `filter` is required (or optional) this takes the form of one or more comma separated regular expressions. Matching is inclusive unless prefixed with `!`, so `--filter=a,b,!c` will match both 'a' and 'b' but will exclude 'c'. The `highlight` parameter is the same as filter.
 
 For graphs, the `--inclusive` switch means that every element of the graph must match the specified filter, rather than just the origin points. This means that if you graph all calls with filter `.*?foo.*` every call from a function with `foo` in the fully qualified name will be reported, including calls to `bar`. If `--inclusive` is set then all nodes must include `foo` within the name, so `bar` is no longer displayed howevercalls to  `foobar` are.
+
+The `--filter-root` means that only the root element of a graph must match a filter; for example - if you create a call graph and filter on `.*?Login.*` then ordinarily all functions must contain `Login`. If you provide `--filter-root` then only the first function in the call graph must contain `Login`.
 
 The `--tokens` switch for graphs can occasionally produce slightly unsightly code, since the tokens are obtained directly from the source file rather than from the parse tree (since only the WSIL tree is retained).
 
@@ -128,7 +140,7 @@ The sources, sinks and reporting subscriber plugins are read from config.xml; th
 
 ![Dataflow analysis](images/dataflow1.jpg)
 
-Dataflow analysis starts by generating a list of all entrypoints into the application and then analysing each in turn attempting to identify source-to-sink paths, reporting as it goes.
+Dataflow analysis starts by generating a list of all entrypoints into the application and then analysing each in turn attempting to identify source-to-sink paths, reporting as it goes. If a `filter` is supplied the only the entrypoints with names matching the filters will be used to initiate analysis.
 
 If code is missing or code flows are broken then analysis may traverse partial paths; this is especially true for asynchronous code which works based on events raised in framework code which may not be analysed. To handle these scenarios code can be augmented using WSIL to fill in the gaps.
 
@@ -157,7 +169,7 @@ The rules and subscriber plugins are read from config.xml; these implement speci
 
 ![Static analysis](images/static1.jpg)
 
-Static analysis processes every WSIL tree generated during code analysis, and prints methods and constructors as they are encountered and scanned but is not limited only to scanning these objects.
+Static analysis processes every WSIL tree generated during code analysis, and prints methods and constructors as they are encountered and scanned but is not limited only to scanning these objects. If a `filter` is supplied the only the tree objects with names matching the filters will be analysed.
 
 ### Code Graphing
 
@@ -236,6 +248,7 @@ The config.xml exposes simple controls to inform behaviour of the different anal
 | maxmem | Maximum memory usage | Fixes the amount of memory which can be used during analysis of a particular path before aborting analysis (and moving onto the next path). This is generally used only to prevent excessive paging and should match roughly the amount of memory available to the system, minus 3-4 GB. A value of 0 means no limit. |
 | maxtime | Maximum time per path | Fixed the maximum runtime for evaluating a particular path. |
 | maxthreads | Number of threads for analysis | Specifies how many concurrent threads to use for analysis (bear in mind each thread can use a fair amount of memory). The maxmem setting applies across all threads. |
+| max-vars | Maximum number of variables per state | Specifies how many variables can be maintained within the state machine used for dataflow analysis at any one time (if exceeded a random subset of variables will be maintained). A value of 0 means no limit. |
 | show-unresolved | Shows unresolved Paths | Applies during analysis, helping to see where code is missing during a scan. Missing code paths are greyed out. |
 | unresolved-taint-logic | Unresolved code taint handling | Determines how unresolved code (missing classes, methods) should be treated during analysis. This is explained in more detail below. |
 

@@ -87,7 +87,7 @@ These rules are located in commonrules.xml at path `/wsast/simple-function/sinks
 </function>
 ```
 
-The format of these rules matches the format used for sinks, with the following exceptions:
+The format of these rules matches the format used for sources, with the following exceptions:
 
 **function**
 
@@ -133,7 +133,7 @@ These rules take exactly the same format as the sink rules, however the followin
 
 **param** or **return**
 
-* traced - ignored because it only applies to dynamic (dataflow) analysis.
+* traced - specifies that only a dynamic (e.g. variable, function call, other non-static expression) should be matched if `/wsast/config/data/traced-as-dynamic` is true, otherwise ignored.
 * linked-param - ignored because it only applies to dynamic analysis.
 
 ### Variable/Data Member Rules
@@ -163,7 +163,6 @@ The variable tag defines the rule at a high level.
 | name | This is the name given to the source during reporting | ReadVariableSource, etc. |
 | languages | This specifies the languages the source applies to, corresponding to the wSAST config.xml \<language\> name tag. | c, java, wsil, * |
 | categories | This specifies the finding categories the source can match on, these can be arbitrary strings; these are matched against the corresponding *sink* categories | MEM_CORRUPTION, SQL_INJECTION, FOOBAR, * |
-| title | This is a text description of the source used for reporting purposes. | "Reads from VarName." |
 | description | This is a text description of the source used for reporting purposes. | "Retrieves a user-supplied input value from variable VarName." |
 
 **definition**
@@ -194,9 +193,15 @@ These rules are located in commonrules.xml at path `/wsast/simple-variable/sinks
 </variable>
 ```
 
-These rules take exactly the same format as the source rules with the following difference:
+The format of these rules matches the format used for sources, with the following exceptions:
 
-* traced - the field specifies whether the correponding input (source) parameter should have been traced.
+**variable**
+
+| Field | Purpose | Example |
+| ---- | ---- | ---- |
+| title | This is a text description of the source used for reporting purposes. | "Reads from VarName." |
+| report | This specifies whether the sink triggers a reporting event (otherwise the sink is attached to the execution state but not reported) | true |
+| traced | The field specifies whether the correponding input (source) parameter should have been traced. | true |
 
 #### Static Rules
 
@@ -214,7 +219,7 @@ These rules are located in commonrules.xml at path `/wsast/simple-variable/stati
 
 These rules take exactly the same format as the sink rules, however the following fields are ignored:
 
-* traced - ignored because it only applies to dynamic (dataflow) analysis.
+* traced - specifies that only a dynamic (e.g. variable, function call, other non-static expression) should be matched if `/wsast/config/data/traced-as-dynamic` is true, otherwise ignored.
 
 ### Data Rules
 
@@ -239,7 +244,6 @@ The data tag defines the rule at a high level.
 | name | This is the name given to the source during reporting | ReadSqlDataSource, etc. |
 | languages | This specifies the languages the source applies to, corresponding to the wSAST config.xml \<language\> name tag. | c, java, wsil, * |
 | categories | This specifies the finding categories the source can match on, these can be arbitrary strings; these are matched against the corresponding *sink* categories | MEM_CORRUPTION, SQL_INJECTION, FOOBAR, * |
-| title | This is a text description of the source used for reporting purposes. | "SQL data read." |
 | description | This is a text description of the source used for reporting purposes. | "Reads data that looks like a SQL query." |
 
 **definition**
@@ -265,7 +269,13 @@ These rules are located in commonrules.xml at path `/wsast/simple-data/sinks`.
 
 These rules take exactly the same format as the source rules with the following difference:
 
-* traced - the field specifies whether the data should be considered only if combined in an expression with traced source input (for example, `"SELECT\s+.\*" + value` is a sink only if value is traced)
+**data**
+
+| Field | Purpose | Example |
+| ---- | ---- | ---- |
+| title | This is a text description of the source used for reporting purposes. | "SQL data read." |
+| report | This specifies whether the sink triggers a reporting event (otherwise the sink is attached to the execution state but not reported) | true |
+| traced | The field specifies whether the data should be considered only if combined in an expression with traced source input (for example, `"SELECT\s+.\*" + value` is a sink only if value is traced) | `"SELECT\s+.\*" + value` |
 
 #### Static Rules
 
@@ -279,7 +289,99 @@ These rules are located in commonrules.xml at path `/wsast/simple-data/static`.
 
 These rules take exactly the same format as the sink rules, however the following fields are ignored:
 
-* traced - ignored because it only applies to dynamic (dataflow) analysis.
+* traced - specifies that only a dynamic (e.g. variable, function call, other non-static expression) should be matched if `/wsast/config/data/traced-as-dynamic` is true, otherwise ignored.
+
+### Annotation Rules
+
+The purpose of this strategy is to enable easy definition of specific data values as sources, sinks and static rules.
+
+#### Sources
+
+These rules are located in commonrules.xml at path `/wsast/simple-annotation/sources`.
+
+```
+<annotation name="PathVariableAnnotationSource" languages="java" categories="*" description="Annotation for mapping dynamic parts of the URL to method parameters.">
+    <definition scope="parameter" value=".*?(PathVariable).*" action="taint" ignore-case="false" />
+</annotation>
+```
+
+**annotation**
+
+The annotation tag defines the rule at a high level.
+
+| Field | Purpose | Example |
+| ---- | ---- | ---- |
+| name | This is the name given to the source during reporting | PathVariableAnnotationSource, etc. |
+| languages | This specifies the languages the source applies to, corresponding to the wSAST config.xml \<language\> name tag. Only "java" is supported at this time. | java |
+| categories | This specifies the finding categories the source can match on, these can be arbitrary strings; these are matched against the corresponding *sink* categories | MEM_CORRUPTION, SQL_INJECTION, FOOBAR, * |
+| description | This is a text description of the source used for reporting purposes. | "Annotation for mapping dynamic parts of the URL to method parameters." |
+
+**definition**
+
+The definition tag defines how to match the variable.
+
+| Field | Purpose | Example |
+| ---- | ---- | ---- |
+| scope | This field specifies the scope at which the annotation is expected; valid values are - class, interface, constructor, method, parameter, field, variable. Multiple scopes can be provided if the annotation applies to multiple scopes. | class, method |
+| value | This field specifies a regular expression against which the tokens of the annotation are matched, including any embedded expressions (e.g. `@RequestParam(value = "id")`). | .\*?RequestParam.* |
+| action | This field specifies the action that should be taken when the annotation is encountered; value values are - taint, taint-members, taint-instance. Multiple actions can be provided. | taint-members,taint-instance |
+| ignore-case | This field specifies whether the case of the value field should be ignored during matching. | false |
+
+#### Scope Behaviour
+
+If a class member variable, method parameter, or local variable are accessed and the `field`, `parameter` or `variable` scopes are applied, then the annotations applied to the declaration of these variables is checked against the specified regex.
+
+If any method parameter is accessed and the `method` or `constuctor` scopes are applied then the method or constructor declaration annotations are checked against the specified regex.
+
+If a class member variable is accessed and the `class` or `interface` scopes are applied, then the class or interface declaration annotations are checked against the specified regex.
+
+#### Action Behaviour
+
+If the `taint` action is specified then either the specific single variable (if matched by the `field`, `parameter` or `variable` rule scope), or every method parameter variable (if matched by the `constructor` or `method` rule scope), or every member variable (if matched by the `class` or `interface` rule scope) are tainted and have the associated source attached to the variable during analysis.
+
+If the `taint-instance` action is specified then the `this` pointer is also tainted, if in a class context; this taints the active class instance. For example - if the constructor of a newly created class instance was executed, and `class` level annotation was matched during this execution, the returned class instance itself would be tainted.
+
+If the `taint-members` action is specified then all member variables are tainted within the context of the active class instance.
+
+To illustrate:
+
+```
+@ClassScope
+public class ExampleClass
+{
+	public int @FieldScope ExampleDataMember = 0;
+	public int ExampleDataMember2 = 0;
+	
+	@MethodScope
+	public void ExampleMethod(@ParamScope int ExampleParam)
+	{
+		@VariableScope int ExampleLocal = 0;
+		DoSomething(ExampleLocal);
+		DoSomething(ExampleParam);
+		DoSomething(ExampleDataMember);
+	}
+}
+```
+
+| Scope | Annotation | Action | Tainted |
+| ---- | ---- | ---- | ---- |
+| class | @ClassScope | taint | ExampleDataMember, ExampleDataMember2 |
+| class | @ClassScope | taint-instance | ExampleClass instance when ExampleMethod() is called |
+| class | @ClassScope | taint-members | ExampleDataMember, ExampleDataMember2 |
+| method | @MethodScope | taint | ExampleParam |
+| method | @MethodScope | taint-instance | ExampleClass instance when ExampleMethod() is called |
+| method | @MethodScope | taint-members | ExampleDataMember, ExampleDataMember2 |
+| field | @FieldScope | taint | ExampleDataMember |
+| field | @FieldScope | taint-instance | ExampleClass instance when ExampleMethod() is called |
+| field | @FieldScope | taint-members | ExampleDataMember, ExampleDataMember2 |
+| parameter | @ParamScope | taint | ExampleParam |
+| parameter | @ParamScope | taint-instance | ExampleClass instance when ExampleMethod() is called |
+| parameter | @ParamScope | taint-members | ExampleDataMember, ExampleDataMember2 |
+| variable | @VariableScope | taint | ExampleLocal |
+| variable | @VariableScope | taint-instance | ExampleClass instance when ExampleMethod() is called |
+| variable | @VariableScope | taint-members | ExampleDataMember, ExampleDataMember2 |
+
+The `interface` and `constuctor` scopes behave the same as `class` and `method` scopes respectively.
 
 ### Subscribers/Reporting
 
@@ -317,18 +419,18 @@ Certain aspects of the Common Rules Engine behaviour can be controlled globally 
 	<control show-debug="false" />
 	<function>
 		<source relax-prefix-types="false" relax-param-types="true" />
-		<sink relax-prefix-types="false" relax-param-types="true" relax-linked-params="false" />
-		<static relax-prefix-types="false" relax-param-types="true" />
+		<sink relax-prefix-types="false" relax-param-types="true" relax-linked-params="false" relax-match-all-params="true" />
+		<static relax-prefix-types="false" relax-param-types="true" traced-as-dynamic="true" />
 	</function>
 	<variable>
 		<source relax-prefix-types="false" />
 		<sink relax-prefix-types="false" />
-		<static relax-prefix-types="false" />
+		<static relax-prefix-types="false" traced-as-dynamic="true" />
 	</variable>
 	<data>
 		<source relax-types="false" />
 		<sink relax-types="false" />
-		<static relax-types="false" />
+		<static relax-types="false" traced-as-dynamic="true" />
 	</data>
 	<subscriber>
 		<control exclude-sources="GetInputSource2, FooBar2" exclude-sinks="ExecuteSQLSink, Foobar" report-sink-once="false" />
@@ -346,6 +448,14 @@ Enables printing of dataflow variables and other useful information during the p
 
 Relaxes the requirement that prefix types need to match when checking rules; if this is set to true then any prefix type will match.
 
+**function AND variable AND data/traced-as-dynamic**
+
+Specifies that the _traced_ element of a rule (which is normally ignored for static scans) is used to specify that the expression in question should be dynamic.
+
+For example if there was a function rule matching function `InsecureMethod(String tracedParam)` normally `InsecureMethod("test")` would match in a static scan, as the traced input requirement is ignored for this scan type.
+
+If `traced-as-dynamic` is enabled then the expression passed must be dynamic, for example `InsecureMethod(someVariable)` or `InsecureMethod("test" + someVariable)` or `InsecureMethod(o.getVar())`.
+
 **function/relax-param-types**
 
 Relaxes the requirement that parameter types must match.
@@ -353,6 +463,10 @@ Relaxes the requirement that parameter types must match.
 **function/relax-linked-params**
 
 Relaxes the requirement that parameter relationships described by the `linked-param` field must match.
+
+**function/relax-match-all-params**
+
+Relaxes the requirement that all parameters marked as traced must be matched for a sink to be matched.
 
 **data/relax-types**
 
@@ -405,7 +519,7 @@ Define the XML format for ChatGPT:
 ```
 The following XML describes a function/method source rule for a SAST product:
 
-<function name="GetInputSource" languages="java" report="true" categories="SQL_INJECTION, *" description="The function reads untrusted user input.">
+<function name="getInput" languages="java" report="true" categories="SQL_INJECTION, *" description="The function reads untrusted user input.">
 	<signature prefix-types=".*?InputClass" virtual="true" names="getInput" param-count="1" />
 	<param pos="1" name="output" types="byte\[\]" traced="true" />
 	<return types="int32" virtual="true" traced="true" />
@@ -417,7 +531,7 @@ public class InputClass { public int32 getInput(byte[] output); }
 
 The function tag attributes have the following meanings:
 
-	name - the name of the source (usually the associated method name followed by "Source")
+	name - the name of the source (usually the fully qualified method name)
 	languages - the language to which the source applies, this can be a comma separate list if it applies to multiple languages
 	categories - this is always set to "*"
 	description - a short description of the source
@@ -443,13 +557,13 @@ The return tag represents the function return value; its attributes have the fol
 	virtual - this is always set to "true"
 	traced - this is set to "true" if the parameter can be tainted by the source function
 
-If the function tag prefix-types has a value then this should be only the class name prefixed by .*? to match any partially qualified name, for example java.sql.Statement and sql.Statement and Statement should match, so ".*?Statement" is the correct value to supply for the method java.sql.Statement.executeQuery. This rule for prefix-types should also be applied to parameter types, so for example a parameter type value matching "java.lang.String" should result in ".*?String" as the value stored in the param tag types value. When producing types, access modifiers such as private, public, const etc. should be omitted. Treat pointers as arrays (so char* becomes char[]). Escape array parenthesis [] as \[\]. Treat constructors as methods. Include inherited methods if they are public.
+If the function tag prefix-types has a value then this should be only the class name prefixed by .*? to match any partially qualified name, for example java.sql.Statement and sql.Statement and Statement should match, so ".*?Statement" is the correct value to supply for the method java.sql.Statement.executeQuery. This rule for prefix-types should also be applied to parameter types, so for example a parameter type value matching "java.lang.String" should result in ".*?String" as the value stored in the param tag types value. When producing types, access modifiers such as private, public, const etc. should be omitted. Treat pointers as arrays (so char* becomes char[]). Escape array parenthesis [] as \[\]. Include constructors and treat constructors as methods. Include inherited methods if they are public.
 ```
 
 Then:
 
 ```
-Generate me SAST source XML according to the specification provided, for methods and constructors within the class java.io.BufferedReader. Please output as a single block of XML, without comments. Include all relevant methods even if it takes some time, and all overloads. Only include methods which can return user supplied data, so ignore methods that just return other state and methods like Close() etc.
+Generate me SAST source XML according to the specification provided, for methods and constructors within the class java.io.BufferedReader. Please output as a single block of XML, without comments. Include all relevant methods even if it takes some time, and all overloads. Only include methods which can return user supplied data, so ignore methods that just return other state and methods like Close() etc. Please leave the function tag categories attribute as "*" and set the function tag name attribute to the fully qualified method path.
 ```
 
 
@@ -461,14 +575,14 @@ Define the XML format for ChatGPT:
 ```
 The following XML describes a function/method sink rule for a SAST product:
 
-<function name="ExecuteQuerySink" languages="java" report="true" categories="SQL_INJECTION, *" title="Possible SQL injection." description="The function has been known to result in SQL injection vulnerabilties when processing untrusted inputs.">
+<function name="java.sql.Statement.executeQuery" languages="java" report="true" categories="SQL_INJECTION, *" title="Possible SQL injection." description="The function has been known to result in SQL injection vulnerabilties when processing untrusted inputs.">
 	<signature prefix-types=".*?Statement" virtual="true" names="executeQuery" param-count="1" />
 	<param pos="1" name="sql" types=".*?String"/>
 </function>
 
 The function tag attributes have the following meanings:
 
-	name - the name of the sink (usually the associated method name followed by "Sink")
+	name - the name of the sink (usually the fully qualified method name)
 	languages - the language to which the sink applies, this can be a comma separate list if it applies to multiple languages
 	report - this is always set to "true"
 	categories - this is always set to "*"
@@ -490,32 +604,98 @@ The param tag attributes have the following meanings:
 	virtual - this is always set to "true"
 	traced - this is set to "true" if the parameter should be traced (user-supplied) input to trigger a vulnerability
 
-If the function tag prefix-types has a value then this should be only the class name prefixed by .*? to match any partially qualified name, for example java.sql.Statement and sql.Statement and Statement should match, so ".*?Statement" is the correct value to supply for the method java.sql.Statement.executeQuery. This rule for prefix-types should also be applied to parameter types, so for example a parameter type value matching "java.lang.String" should result in ".*?String" as the value stored in the param tag types value. When producing types, access modifiers such as private, public, const etc. should be omitted. Treat pointers as arrays (so char* becomes char[]). Escape array parenthesis [] as \[\]. Treat constructors as methods. Include inherited methods if they are public.
+If the function tag prefix-types has a value then this should be only the class name prefixed by .*? to match any partially qualified name, for example java.sql.Statement and sql.Statement and Statement should match, so ".*?Statement" is the correct value to supply for the method java.sql.Statement.executeQuery. This rule for prefix-types should also be applied to parameter types, so for example a parameter type value matching "java.lang.String" should result in ".*?String" as the value stored in the param tag types value. When producing types, access modifiers such as private, public, const etc. should be omitted. Treat pointers as arrays (so char* becomes char[]). Escape array parenthesis [] as \[\]. Include constructors and treat constructors as methods. Include inherited methods if they are public.
+```
 
-If there are multiple parameters to a method which could be tainted inputs leading to a vulnerability, then duplicate the XML for each parameter, setting the param tag attribute traced="true" for each in turn, for example for method TestClass.Example(), instead of outputting:
+### Annotation Sources
 
-<function name="ExampleSink" languages="java" report="true" categories="LOG4SHELL, *"
-    title="Potential vulnerability." description="The function has been known to be vulnerable.">
-    <signature prefix-types=".*?TestClass" virtual="true" names="Example" param-count="1-*" />
-    <param pos="1" name="foo" types=".*?String" traced="true" />
-    <param pos="2" name="bar" types=".*?String" traced="true" />
-</function>
+Define the XML format for ChatGPT:
 
-Please output:
+```
+The following XML describes an annotation source rule for a SAST product:
 
-<function name="ExampleSink" languages="java" report="true" categories="LOG4SHELL, *"
-    title="Potential vulnerability." description="The function has been known to be vulnerable.">
-    <signature prefix-types=".*?TestClass" virtual="true" names="Example" param-count="1-*" />
-    <param pos="1" name="foo" types=".*?String" traced="true" />
-    <param pos="2" name="bar" types=".*?String" />
-</function>
+<annotation name="RULE_NAME" languages="java" categories="*" description="RULE_DESCRIPTION">
+	<definition scope="SCOPE" value="REGEX" action="ACTION" ignore-case="false" />
+</annotation>
 
+The annotation attributes have the following meanings:
 
-<function name="ExampleSink" languages="java" report="true" categories="LOG4SHELL, *"
-    title="Potential vulnerability." description="The function has been known to be vulnerable.">
-    <signature prefix-types=".*?TestClass" virtual="true" names="Example" param-count="1-*" />
-    <param pos="1" name="foo" types=".*?String" />
-    <param pos="2" name="bar" types=".*?String" traced="true" />
-</function>
+	name - the name of the source (usually the associated annotation name followed by "Source")
+	languages - the language to which the source applies (this should just be "java")
+	categories - this is always set to "*"
+	description - a short description of the source
+	
+The definition tag attributes have the following meanings:
+
+	scope - the scope at which the annotation is usually applied; this can be one of: class,interface,constructor,method,field,parameter,variable
+	value - a regular expression to match the annotation rule name (usually just `.*?AnnotationClassName.*`)
+	action - once matched the action can be one of the following values: taint,taint-members,taint-instance
+	
+The scope attribute values above have the following meanings:
+
+	class - the attribute is applied at the class level (directly before the class declaration)
+	interface - the attribute is applied at the interface level (directly before the interface declaration)
+	constructor - the attribute is applied at the constructor level (directly before the constructor declaration)
+	method - the attribute is applied at the method level (directly before the method declaration)
+	field - the attribute is applied to class data member variables (directly before the member declaration)
+	parameter - the attribute is applied to function parameters (directly before the parameter declaration_
+	variable - the attribute is applied to local variables (directly before the variable declaration)
+
+The action attribute values above have the following meanings:
+
+	taint - once matched the rule taints the class instance (if scope is class,interface) or the method return value (if scope is constructor,method) or immediate data member, parameter or variable (if field,parameter,variable)
+	taint-members - once matched the rule taints the class members
+	taint-instance - once matched the rule taints the class instance variable
+	
+Multiple values can be supplied for scope or action as needed. If in doubt all valid values should be applied for these attributes (as a comma separated list).
+
+Annotation rules validate annotations that are applied to classes, methods or parameters/variables based on those code objects being annotated.
+
+For example the following Spring route has three annotations:
+
+@RestController
+public class MyController {
+
+    @GetMapping("/greet")
+    public String greet(@RequestParam(name = "name", defaultValue = "World") String name) {
+        return "Hello, " + name + "!";
+    }
+}
+
+The annotation @RestController is at the class level, @GetMapping is at the method level, and @RequestParam at the parameter/variable level.
+
+To simplify creation of rules, the following three templates should be used:
+
+For annotations applied at the class or interface level the following XML:
+
+<annotation name="RULE_NAME" languages="java" categories="*" description="DESCRIPTION">
+	<definition scope="class,interface" value="REGEX" action="taint,taint-members,taint-instance" ignore-case="false" />
+</annotation>
+
+For annotations applied at the constructor or method level the following XML:
+
+<annotation name="RULE_NAME" languages="java" categories="*" description="DESCRIPTION">
+	<definition scope="constructor,method" value="REGEX" action="taint" ignore-case="false" />
+</annotation>
+
+For annotations applied at the field, parameter or variable level the following XML:
+
+<annotation name="RULE_NAME" languages="java" categories="*" description="DESCRIPTION">
+	<definition scope="field,parameter,variable" value="REGEX" action="taint" ignore-case="false" />
+</annotation>
+
+For example, with the Java code previously supplied, rules for the three annotations would be:
+
+<annotation name="RestControllerAnnotationSource" languages="java" categories="*" description="Spring MVC RestController annotation source possibly processing user supplied inputs.">
+	<definition scope="class,interface" value=".*?(RestController).*" action="taint,taint-members,taint-instance" ignore-case="false" />
+</annotation>
+
+<annotation name="GetMappingAnnotationSource" languages="java" categories="*" description="Spring MVC GetMapping route annotation source possibly processing user supplied inputs.">
+	<definition scope="constructor,method" value=".*?(GetMapping).*" action="taint" ignore-case="false" />
+</annotation>
+
+<annotation name="RequestParamAnnotationSource" languages="java" categories="*" description="Spring MVC RequestParam varluable annotation source from a potentially user supplied source.">
+	<definition scope="field,parameter,variable" value=".*?(RequestParam).*" action="taint" ignore-case="false" />
+</annotation>
 ```
 
