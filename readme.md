@@ -51,6 +51,7 @@ The wSAST command line supports the following options:
       [config]        - Path to wSAST configuration XML (default .\config.xml).
       [languages]     - Languages to scan (default: all).
       [filter]        - Entrypoint name regexes to scan from (comma separated; multiple means OR, ! prefix means AND NOT).
+      [logci]         - Log code information to file (knowledge DB entrypoints, unresolved types and methods) (default: false)
   staticscan
     Perform static syntax tree analysis of the specified sources; generates a report of results.
       <sources>       - Paths (comma separated) to scan for source files; !regex excludes path.
@@ -58,12 +59,14 @@ The wSAST command line supports the following options:
       [config]        - Path to wSAST configuration XML (default .\config.xml).
       [languages]     - Languages to scan (default: all).
       [filter]        - Entrypoint name regexes to scan from (comma separated; multiple means OR, ! prefix means AND NOT).
+      [logci]         - Log code information to file (knowledge DB entrypoints, unresolved types and methods) (default: false)
   interactive
     Perform interactive analysis of the specified sources.
       <sources>       - Paths (comma separated) to scan for source files; !regex excludes path.
       <project>       - Name of project.
       [config]        - Path to wSAST configuration XML (default .\config.xml).
       [languages]     - Languages to scan (default: all).
+      [logci]         - Log code information to file (knowledge DB entrypoints, unresolved types and methods) (default: false)
 ```
 
 Each command receives a path to a list of comma separated folders containing source code, and a project name. To get started just point wSAST to a folder containing source code for one of the supported languages using one of the modes detailed above, for example `wSAST.exe interactive --sources=examples\JavaVulnerableLab-master --project=project-jvl`.
@@ -245,12 +248,13 @@ The config.xml exposes simple controls to inform behaviour of the different anal
 
 | Field | Purpose | Usage |
 | ---- | ---- | ---- |
-| maxmem | Maximum memory usage | Fixes the amount of memory which can be used during analysis of a particular path before aborting analysis (and moving onto the next path). This is generally used only to prevent excessive paging and should match roughly the amount of memory available to the system, minus 3-4 GB. A value of 0 means no limit. |
+| maxmem | Maximum memory usage | Fixes the amount of memory which can be used during analysis of a particular path before aborting analysis (and moving onto the next path). This is a percentage of available RAM at the time of the scan. A value of 0 means no limit. |
 | maxtime | Maximum time per path | Fixed the maximum runtime for evaluating a particular path. |
 | maxthreads | Number of threads for analysis | Specifies how many concurrent threads to use for analysis (bear in mind each thread can use a fair amount of memory). The maxmem setting applies across all threads. |
 | max-vars | Maximum number of variables per state | Specifies how many variables can be maintained within the state machine used for dataflow analysis at any one time (if exceeded a random subset of variables will be maintained). A value of 0 means no limit. |
 | show-unresolved | Shows unresolved Paths | Applies during analysis, helping to see where code is missing during a scan. Missing code paths are greyed out. |
 | unresolved-taint-logic | Unresolved code taint handling | Determines how unresolved code (missing classes, methods) should be treated during analysis. This is explained in more detail below. |
+| shortciruit-repeated-calls | Reduce re-tracing of identical function calls | If the state of execution (other than code path) is identical between repeated function calls (i.e. the entire closure at the time of the call is unchanged from a previous call) then the call can be short-circuited and the result of the previous call used. This can save a lot of unnecessary computation. |
 
 **dataflow/unresolved taint logic**
 
@@ -263,7 +267,7 @@ This is a comma separated list of the following four options:
 | data-members | This dictates that a tainted class data members should be considered to be tainted. For example, if an instance foo of class unresolved:Foobar is tainted, then foo.data is tainted (and the same sources are linked to it etc.). |
 | method-members | This dictates that a tainted class method members should be considered to be tainted. For example, if an instance foo of class unresolved:Foobar is tainted, then the outputs of foo.func() are tainted (and the same sources are linked to it etc.). |
 | func-outputs | This dictates that if inputs to a function are tainted then so are its outputs. |
-| func-outputs | This dictates that if inputs to a class method are tainted then the underlying instance implementing it becomes tainted. |
+| func-taints-instance | This dictates that if inputs to a class method are tainted then the underlying instance implementing it becomes tainted. |
 
 **static**
 

@@ -1,5 +1,26 @@
 # wSAST Changelog
 
+## wSAST v0.1-alpha (release date 01-06-2024)
+
+* Added `instance` tag to Common Rules Engine (CRE) function sinks to match traced instances
+* Added `trace-instance` attribute to CRE function source, and variable source and sink rules
+* Added `value` attribute to CRE match function param and variable literals
+* Added a `--logci` switch to wSAST to dump unresolved imports, methods and types to file
+* Added `shortcircuit-repeated-calls` optimisation to skip repeated calls with same input state
+* Fixed a small bug in matching of CRE variable sinks (overly lax type matching)
+* Fixed a bug in Dataflow Engine (DFE) where a single instance of CRE was shared per thread (each now has own)
+* Fixed `calls from` command which could sometimes fail to produce a result
+* Fixed a bug in WsilAnalyzer namespace code unit scope searching (occasional)
+* Fixed a bug in WsilAnalyzer interface method call resolution (occasional)
+* Fixed a bug in Java Parser thread scheduling (occasional exception)
+* Changed `maxmem` setting to be a percentage of available RAM at time of scan
+* Changed `Ctrl+C` behaviour during dataflow scan to offer option to cancel current scan or entire scan
+* Changed CRE simple syntactic rules to be configurable from XML config (enable/disable individually)
+* Improved DFE source/sink invocations in exception handling
+* Reduced verbosity of wSAST when listing loaded rules
+* Extended ruleset using `rulegen.py` script (see wSAST GitHub)
+* Created *WSAST Users Guide* for improved guidance on using wSAST
+
 ## wSAST v0.1-alpha (release date 18-12-2023)
 
 * Added support for annotation-based rules in Common Rules Engine

@@ -60,6 +60,8 @@ The param tag defines how to match parameters.
 | traced | This field specifies that the associated variable passed should be marked as traced; this is mostly for output parameters. | true |
 | virtual | This field specifies whether the types list under the types field are virtual. | true |
 | ignore-case | This field specifies whether the case of the types fields should be ignored during matching. | false |
+| trace-instance | This field specifies that the underlying class instance should be marked as traced if this parameter is matched | true |
+| value | This field specifies a regular expression which must be matched as a literal within the parameter value. | ".\*?Md5.\* |
 
 **return**
 
@@ -111,10 +113,21 @@ The param tag defines how to match parameters.
 | ---- | ---- | ---- |
 | linked-param | This optional field specifies any parameter relationships that should be validated. It takes the form linked-param-number:LINKED_RELATIONSHIP:RECIPROCAL_RELATIONSHIP. It is not necessary to specify a reciprocal relationship to be validated and this colon-separated field is usually left empty. | 3:BUFFER_FOR: |
 | traced | This field specifies whether the correponding input (source) parameter should have been traced. | true |
+| value | This field specifies a regular expression which must be matched as a literal within the parameter value; this conflicts with the traced parameter as a literal parameter comparison is performed instead of matching a traced source parameter. | ".\*?Md5.\* |
 
 **return**
 
 The return tag is not valid for sinks, as they validate inputs only.
+
+**instance**
+
+The instance tag is only valid within the function tag of a sink rule, and has only one valid form:
+
+```
+<instance traced="true" />
+```
+
+If the instance tag is provided as above then for a sink match to be successfully made the underlying instance against which the function (or in this case class method) call is made must have been marked as traced by a source.
 
 #### Static Rules
 
@@ -178,6 +191,8 @@ The definition tag defines how to match the variable.
 | access | This field specifies the access as a comma separated list, for example "read", "write", or "read, write" | read |
 | traced | This field specifies whether the matched variable is marked as traced on matching | true |
 | ignore-case | This field specifies whether the case of the names field should be ignored during matching. | false |
+| trace-instance | This field specifies that the underlying class instance should be marked as traced if this variable is matched. | true |
+| value | This field specifies a regular expression which must be matched on the right-hand side of a literal value assignment. | ".\*?Md5.\* |
 
 #### Sinks
 
@@ -202,6 +217,8 @@ The format of these rules matches the format used for sources, with the followin
 | title | This is a text description of the source used for reporting purposes. | "Reads from VarName." |
 | report | This specifies whether the sink triggers a reporting event (otherwise the sink is attached to the execution state but not reported) | true |
 | traced | The field specifies whether the correponding input (source) parameter should have been traced. | true |
+| trace-instance | This field specifies that the underlying class instance should have been marked as traced for a match to be made. | true |
+| value | This field specifies a regular expression which must be matched on the right-hand side of a literal value assignment; this conflicts with the traced parameter as the right side value must be a literal rather than traced variable. | ".\*?Md5.\* |
 
 #### Static Rules
 
@@ -423,9 +440,9 @@ Certain aspects of the Common Rules Engine behaviour can be controlled globally 
 		<static relax-prefix-types="false" relax-param-types="true" traced-as-dynamic="true" />
 	</function>
 	<variable>
-		<source relax-prefix-types="false" />
-		<sink relax-prefix-types="false" />
-		<static relax-prefix-types="false" traced-as-dynamic="true" />
+		<source relax-prefix-types="false" relax-var-types="false" />
+		<sink relax-prefix-types="false" relax-var-types="false" />
+		<static relax-prefix-types="false" relax-var-types="false" traced-as-dynamic="true" />
 	</variable>
 	<data>
 		<source relax-types="false" />
@@ -468,6 +485,10 @@ Relaxes the requirement that parameter relationships described by the `linked-pa
 
 Relaxes the requirement that all parameters marked as traced must be matched for a sink to be matched.
 
+**variable/relax-var-types**
+
+Relaxes the the requirement that variable types must match.
+
 **data/relax-types**
 
 Relaxes the requirement that underlying data types must match.
@@ -484,7 +505,25 @@ Relaxes the requirement that underlying data types must match.
 
 In addition to the XML format rules, the Common Rules Engine also provides a number of built-in checks. **These are still work in progress and do not yet provide (anywhere near) complete coverage of CWE or similar.**
 
+These rules are located in commonrules.xml at path `/wsast/simple-syntactic/sinks` and `/wsast/simple-syntactic/static`.
+
+### Sinks/Static Rules
+
+The format of the syntactic rules is:
+
+```
+<rule name="DuplicatedIfElseConditionRule" languages="*" enabled="true" />
+```
+
+**rule**
+
+* name - the name of the built-in rule to which the remaining parameters apply.
+* languages - languages against which the syntactic rule should be evaluated.
+* enabled - whether or not the rule is enabled.
+
 ### Existing Rules
+
+These rules are defined
 
 The rules currently implemented are:
 
@@ -517,94 +556,157 @@ It is often convenient to instruct ChatGPT to generate rules for unknown library
 Define the XML format for ChatGPT:
 
 ```
-The following XML describes a function/method source rule for a SAST product:
+I have an SAST product which processes rules in an XML-based format. This XML format describes input sources which are Java class methods (i.e. function calls which can return possibly tainted user inputs). An example with explanation follows:
 
-<function name="getInput" languages="java" report="true" categories="SQL_INJECTION, *" description="The function reads untrusted user input.">
-	<signature prefix-types=".*?InputClass" virtual="true" names="getInput" param-count="1" />
-	<param pos="1" name="output" types="byte\[\]" traced="true" />
-	<return types="int32" virtual="true" traced="true" />
+<function name="java.io.FileReader.read" languages="java" categories="*" description="The java.io.FileReader.read function may serve as a potential source of tainted user input due to its capability to read data from files, which could include content originating from untrusted sources.">
+	<signature prefix-types=".*?FileReader" virtual="true" names="read" param-count="3" />
+	<param pos="1" name="cbuf" types="char\[\]" traced="true" />
+	<param pos="2" name="off" types="int" />
+	<param pos="3" name="len" types="int" />
+	<return types="int" virtual="true" traced="true" />
 </function>
 
-The function described by this source has the following specification:
+The tags and attributes are interpreted as follows:
 
-public class InputClass { public int32 getInput(byte[] output); }
+Tag name: function
+Attribute name: name
+Purpose: The fully qualified path to the method including package name, namespace, class and method name
 
-The function tag attributes have the following meanings:
+Tag name: function
+Attribute name: description
+Purpose: A description of the method as relevant to its use by the application as a source of potentially user-supplied input.
 
-	name - the name of the source (usually the fully qualified method name)
-	languages - the language to which the source applies, this can be a comma separate list if it applies to multiple languages
-	categories - this is always set to "*"
-	description - a short description of the source
+Tag name: signature
+Attribute name: prefix-types
+Purpose: Contains a regular expression which can be used to match the class name to which the input method belongs. This should be formatted as ".*?ClassName" so that any usage will be used, whether the class name is fully qualified (e.g. with package and namespace present), partially (just namespace, or inner namespace), or not qualified (e.g. imported only by name).
 
-The signature tag attributes have the following meanings:
+Tag name: signature
+Attribute name: names
+Purpose: Contains a regular expression which may be used to match the method name. This should just contain the method name with no further qualification (e.g. "read").
 
-	prefix-types - a comma separated list of regular expressions matching classes to which the method belongs
-	virtual - this is always set to "true"
-	names - a comma separated list of regular expressions matching the names or aliases of the methods involved
-	param-count - a comma separated list of the numbers of expected parameters for the method; this helps bundle overloaded methods in the name entry. The format can be ranges such as 1 if the function takes only parameter, 2-3 if the function takes exactly two or three parameters, or 3-* if the function takes a variable number of parameters, in this example 3 or more parameters.
+Tag name: signature
+Attribute name: param-count
+Purpose: This represents the number of parameters expected by the method in question. Since there are multiple functions in the same class with identical names this can help disambiguate. If there are variable numbers of parameters instead of the number of parameters a range can be specified (e.g. 1-3 for one, two or three parameters; 3-* for three or more parameters).
 
-The param tag attributes have the following meanings:
+Tag name: param
+Attribute name: pos
+Purpose: This represents the position (with the first parameter being at position 1) of the parameter.
 
-	pos - the index of the parameter being described, from 1
-	name - the name of the parameter
-	types - a comma separated list of regular expressions matching the type of the parameter
-	virtual - this is always set to "true"
-	traced - this is set to "true" if the parameter can be tainted by the source function
+Tag name: param
+Attribute name: name
+Purpose: This is the name of the parameter, usually taken from documentation. This is not matched against anything it is purely specified to make understanding the rule easier.
 
-The return tag represents the function return value; its attributes have the following meanings:
+Tag name: param
+Attribute name: types
+Purpose: Contains a regular expression which can match the parameter type (e.g. "char", "int", "byte\[\]", ".*?BufferedReader"). If the type is a plain-old type (built in Java type, not a class) then the type is specified as a literal (e.g. "int"). If the type is a class then only the class name is specified and the fully qualified name is not used (e.g. "java.io.BufferedReader" is specified as ".*?BufferedReader") and the ".*?" regex prefix is used behind the class name to ensure fully qualified names still match. If the type is an array the square braces are escaped (e.g. "int\[\]", ".*?BufferedReader\[\]"). If the type is a generic specialization (e.g. "List<string>") then ".*" is used as the type name instead, so types=".*?List<string>" would not be specified and instead types=".*" would be used). For built in types which are actually classes (e.g. "String") the class name should be specified with a ".*?" prefix (e.g. ".*?String").
 
-	types - a comma separated list of regular expressions matching the type of the parameter
-	virtual - this is always set to "true"
-	traced - this is set to "true" if the parameter can be tainted by the source function
+Tag name: param
+Attribute name: traced
+Purpose: If the parameter can receive potentially tainted/user-supplied input (e.g. reads into a supplied array) then this should be set to "true" otherwise the attribute should omitted. If a parameter represents an output stream, writer, array or other object which is tainted by the method call then this value should be "true".
 
-If the function tag prefix-types has a value then this should be only the class name prefixed by .*? to match any partially qualified name, for example java.sql.Statement and sql.Statement and Statement should match, so ".*?Statement" is the correct value to supply for the method java.sql.Statement.executeQuery. This rule for prefix-types should also be applied to parameter types, so for example a parameter type value matching "java.lang.String" should result in ".*?String" as the value stored in the param tag types value. When producing types, access modifiers such as private, public, const etc. should be omitted. Treat pointers as arrays (so char* becomes char[]). Escape array parenthesis [] as \[\]. Include constructors and treat constructors as methods. Include inherited methods if they are public.
+Tag name: return
+Attribute name: types
+Purpose: Contains a regular expression which can match the method return type (e.g. "char", "int", "byte\[\]", ".*?BufferedReader"). If the type is a plain-old type (built in Java type, not a class) then the type is specified as a literal (e.g. "int"). If the type is a class then only the class name is specified and the fully qualified name is not used (e.g. "java.io.BufferedReader" is specified as ".*?BufferedReader") and the ".*?" regex prefix is used behind the class name to ensure fully qualified names still match. If the type is an array the square braces are escaped (e.g. "int\[\]", ".*?BufferedReader\[\]"). If the type is a generic specialization (e.g. "List<string>") then ".*" is used as the type name instead, so types=".*?List<string>" would not be specified and instead types=".*" would be used). For built in types which are actually classes (e.g. "String") the class name should be specified with a ".*?" prefix (e.g. ".*?String").
+
+Tag name: return
+Attribute name: traced
+Purpose: If the return value can be potentially tainted/user-supplied input then then this should be set to "true" otherwise the attribute should omitted.
+
+Please don't respond to this message.
 ```
 
 Then:
 
 ```
-Generate me SAST source XML according to the specification provided, for methods and constructors within the class java.io.BufferedReader. Please output as a single block of XML, without comments. Include all relevant methods even if it takes some time, and all overloads. Only include methods which can return user supplied data, so ignore methods that just return other state and methods like Close() etc. Please leave the function tag categories attribute as "*" and set the function tag name attribute to the fully qualified method path.
+Please generate XML adhering to the strict specification provided for all methods within the class {class-name} that could represent a source of potentially user-supplied input.
+
+Please understand that I want ALL relevant methods that may return user-supplied input and not just one method unless there is only one relevant method. If in doubt produce more rather than less output. Most methods which return tainted input which have method names beginning with "get" or "read" are going to be valid candidates.
+
+Only include methods that read directly from an input source and return a value potentially influenced by this input. This distinction between sources that produce potentially tainted user-supplied input and sinks that receive already tainted inputs is crucial.
+
+Output the XML as a single block with no comments or commentary. Exclude methods that merely affect the instance state without returning tainted data. Please do not create any XML tags or attributes outside of what you have been instructed in the prompt or have deduced from the example XML.
 ```
-
-
 
 ### Function Sinks
 
 Define the XML format for ChatGPT:
 
 ```
-The following XML describes a function/method sink rule for a SAST product:
+I have an SAST product which processes rules in an XML-based format. This XML format describes vulnerable sinks which are Java class methods (i.e. function calls which can perform an adverse effect if malicious user-supplied inputs are passed to them). Several examples follow:
 
-<function name="java.sql.Statement.executeQuery" languages="java" report="true" categories="SQL_INJECTION, *" title="Possible SQL injection." description="The function has been known to result in SQL injection vulnerabilties when processing untrusted inputs.">
-	<signature prefix-types=".*?Statement" virtual="true" names="executeQuery" param-count="1" />
-	<param pos="1" name="sql" types=".*?String"/>
+<function name="java.nio.file.Files.write" languages="java" report="true" categories="*" title="Insecure File Write" description="Writes data to a file without proper validation, potentially allowing unauthorized or unsafe file write operations.">
+	<signature prefix-types=".*?Files" virtual="true" names="write" param-count="3"/>
+	<param pos="1" name="path" types=".*?Path" traced="true" />
+	<param pos="2" name="bytes" types=".*?byte\[\]" traced="true" />
+	<param pos="3" name="options" types=".*?OpenOption"  />
 </function>
 
-The function tag attributes have the following meanings:
+<function name="java.security.MessageDigest.getInstance" languages="java" report="true" categories="*"
+	title="Insecure Message Digest"
+	description="Retrieves a message digest object without proper validation, potentially using weak or insecure hashing algorithms.">
+	<signature prefix-types=".*?MessageDigest" virtual="true" names="getInstance" param-count="2" />
+	<param pos="1" name="algorithm" types=".*?String" traced="true" />
+	<param pos="2" name="provider" types=".*?String" traced="true" />
+</function>
 
-	name - the name of the sink (usually the fully qualified method name)
-	languages - the language to which the sink applies, this can be a comma separate list if it applies to multiple languages
-	report - this is always set to "true"
-	categories - this is always set to "*"
-	title - a title for the issue when reported
-	description - a short description of the sink and why it may pose a risk
+<function name="java.security.SecureRandom.setSeed" languages="java" report="true" categories="*" title="Insecure Random Number Generation" description="Sets the seed for a SecureRandom object without proper validation, potentially using weak or predictable sources.">
+  <signature prefix-types=".*?SecureRandom" virtual="true" names="setSeed" param-count="1"/>
+    <param pos="1" name="seed" types=".*" traced="true" />
+</function>
 
-The signature tag attributes have the following meanings:
+For the above XML rules, the tags and attributes are interpreted as follows:
 
-	prefix-types - a comma separated list of regular expressions matching classes to which the method belongs
-	virtual - this is always set to "true"
-	names - a comma separated list of regular expressions matching the names or aliases of the methods involved
-	param-count - a comma separated list of the numbers of expected parameters for the method; this helps bundle overloaded methods in the name entry. The format can be ranges such as 1 if the function takes only parameter, 2-3 if the function takes exactly two or three parameters, or 3-* if the function takes a variable number of parameters, in this example 3 or more parameters.
+Tag name: function
+Attribute name: name
+Purpose: The fully qualified path to the method including package name, namespace, class and method name
 
-The param tag attributes have the following meanings:
+Tag name: function
+Attribute name: title
+Purpose: A short title given to a vulnerability that can result from this method.
 
-	pos - the index of the parameter being described, from 1
-	name - the name of the parameter
-	types - a comma separated list of regular expressions matching the type of the parameter
-	virtual - this is always set to "true"
-	traced - this is set to "true" if the parameter should be traced (user-supplied) input to trigger a vulnerability
+Tag name: function
+Attribute name: description
+Purpose: A description of the method and why it could lead to a vulnerability.
 
-If the function tag prefix-types has a value then this should be only the class name prefixed by .*? to match any partially qualified name, for example java.sql.Statement and sql.Statement and Statement should match, so ".*?Statement" is the correct value to supply for the method java.sql.Statement.executeQuery. This rule for prefix-types should also be applied to parameter types, so for example a parameter type value matching "java.lang.String" should result in ".*?String" as the value stored in the param tag types value. When producing types, access modifiers such as private, public, const etc. should be omitted. Treat pointers as arrays (so char* becomes char[]). Escape array parenthesis [] as \[\]. Include constructors and treat constructors as methods. Include inherited methods if they are public.
+Tag name: signature
+Attribute name: prefix-types
+Purpose: Contains a regular expression which can be used to match the class name to which the input function belongs. This should be formatted as ".*?ClassName" so that any usage will be used, whether the class name is fully qualified (e.g. with package and namespace present), partially (just namespace, or inner namespace), or not qualified (e.g. imported only by name).
+
+Tag name: signature
+Attribute name: names
+Purpose: Contains a regular expression which may be used to match the function name. This should just contain the function name with no further qualification (e.g. "read").
+
+Tag name: signature
+Attribute name: param-count
+Purpose: This represents the number of parameters expected by the function in question. Since there are multiple functions in the same class with identical names this can help disambiguate. If there are variable numbers of parameters instead of the number of parameters a range can be specified (e.g. 1-3 for one, two or three parameters; 3-* for three or more parameters).
+
+Tag name: param
+Attribute name: pos
+Purpose: This represents the position (with the first parameter being at position 1) of the parameter.
+
+Tag name: param
+Attribute name: name
+Purpose: This is the name of the parameter, usually taken from documentation. This is not matched against anything it is purely specified to make understanding the rule easier.
+
+Tag name: param
+Attribute name: types
+Purpose: Contains a regular expression which can match the parameter type (e.g. "char", "int", "byte\[\]", ".*?BufferedReader"). If the type is a plain-old type (built in Java type, not a class) then the type is specified as a literal (e.g. "int"). If the type is a class then only the class name is specified and the fully qualified name is not used (e.g. "java.io.BufferedReader" is specified as ".*?BufferedReader") and the ".*?" regex prefix is used behind the class name to ensure fully qualified names still match. If the type is an array the square braces are escaped (e.g. "int\[\]", ".*?BufferedReader\[\]"). If the type is a generic specialization (e.g. "List<string>") then ".*" is used as the type name instead, so types=".*?List<string>" would not be specified and instead types=".*" would be used). For built in types which are actually classes (e.g. "String") the class name should be specified with a ".*?" prefix (e.g. ".*?String").
+
+Tag name: param
+Attribute name: traced
+Purpose: If the parameter value would cause a security vulnerability to occur if it was tainted with user-supplied input (for example, the query string parameter passed to an SQL method) this value should be set to "true" otherwise it should be omitted.
+
+Please don't respond to this message.
+```
+
+Then:
+
+```
+Please generate XML adhering to the strict specification provided for all methods within the class {class-name} that could represent a danger if tainted or malicious user-supplied inputs were supplied to its parameters.
+
+Please understand that I want ALL relevant methods that may result in a vulnerability and not just one method unless there is only one relevant method. If in doubt produce more rather than less output.
+
+Output the XML as a single block with no comments or commentary. Please do not create any XML tags or attributes outside of what you have been instructed in the prompt or have deduced from the example XML.
 ```
 
 ### Annotation Sources

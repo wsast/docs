@@ -1,0 +1,224 @@
+Program ::=
+	/*
+		Any global element goes here
+		
+		We need to be able to support freeform code as Python allows ( (Statement)* ), multiple namespaces within same file as C++/C#
+		supports (NamespaceDeclaration), includes/imports at any point as C++ allows (ImportDeclaration), and methods outside of 
+		classes, plus the usual classes and interfaces
+	*/
+	( NamespaceDeclaration | ImportDeclaration | ClassDeclaration | MethodDeclaration | StatementBlock | InterfaceDeclaration )* <EOF>
+
+NamespaceDeclaration ::= "namespace" QualifiedName "{" ( NamespaceDeclaration | ImportDeclaration | ClassDeclaration | MethodDeclaration | StatementBlock | InterfaceDeclaration )* "}"
+
+ImportDeclaration ::=
+	 <!name=specific>	"import" QualifiedName ";"
+	|<!name=wildcard>	"import" QualifiedName "." "*" ";"
+
+QualifiedName ::=
+	Identifier ("." Identifier)*
+
+QualifiedTypeName ::=
+	( Identifier ( TypeParameters )? ) ( "." Identifier ( TypeParameters )? )*
+
+Modifier ::=
+	 <!name=public>		"public"
+	|<!name=protected>	"protected"
+	|<!name=private>	"private"
+	|<!name=static>		"static"
+
+ConstructorDeclaration ::=
+	( Modifier )* Identifier ( TypeParameters )? "(" ( Type Identifier ("=" Expression)? ( "," Type Identifier ("=" Expression)? )* ( "," Ellipsis )? )? ")" StatementBlock
+
+ClassDeclaration ::=
+	/*
+		A class declaration
+		
+		A class can encapsulate member vars, methods, constructors, and nested classes but not interfaces
+		
+		A class can extend multiple classes and implement multiple interfaces, the names of which can be qualified (but the class name
+			at present cannot be - if we need this then we can add later)
+	*/
+	( Modifier )* "class" className=Identifier ( classParams=TypeParameters )? ( "extends" extendsName=QualifiedTypeName ( "," extendsName=QualifiedTypeName )* )? ( "implements" implementsName=QualifiedTypeName ( "," implementsName=QualifiedTypeName )* )? "{" ( ( Modifier )* VarDeclaration | ClassDeclaration | InterfaceDeclaration | ConstructorDeclaration | MethodDeclaration | StatementBlock )* "}"
+
+InterfaceDeclaration ::=
+	/*
+		An interface declaration
+		
+		An interface can encapsulate member vars, methods, and nested interfaces but not classes
+		
+		An interface can extend multiple interfaces interfaces, the names of which can be qualified (but the interface name at present cannot
+		be - if we need this then we can add later)
+	*/
+	( Modifier )* "interface" interfaceName=Identifier ( interfaceParams=TypeParameters )? ( "extends" extendsName=QualifiedTypeName ( "," extendsName=QualifiedTypeName )* )? "{" ( ( Modifier )* VarDeclaration | InterfaceDeclaration | MethodDeclaration )* "}"
+
+TypeParameters ::=
+	"<" Type ( "," Type )* ">" 
+
+VarDeclaration ::=
+	  Type Identifier ( "=" Expression )? ";"
+
+MethodDeclaration ::=
+	/*
+		A method implementation
+		
+		The identifier name can be qualified (i.e. A.B<T>.C<U>()) to support explicit interface implementation as allowed in C#
+		
+		Default parameter values are allowed (named defaults as allowed in C# e.g. Foo(param3: 1) to be considered later) and a variable number of arguments
+		is permitted by using the "..." sequence as in C
+	*/
+	( Modifier )* Type QualifiedTypeName "(" ( Type Identifier ("=" Expression)? ( "," Type Identifier ("=" Expression)? )* ( "," Ellipsis )? )? ")" StatementBlock
+
+Ellipsis ::= "..."
+
+Type ::=
+	/*
+		A basic type declaration, or array of that type
+		
+		var foo;
+		int[][] bar;
+		System.Collections.Generics.Dictionary<int,string>[]
+	*/
+	  <!name=builtin>		BuiltInType
+	| <!name=user>			UserType
+	| <!name=builtin_array> BuiltInType ( Dims )+
+	| <!name=user_array>	UserType ( Dims )+
+	| <!name=dynamic>		DynamicType
+
+Dims ::= "[" "]"
+
+BuiltInType ::=
+	/*
+		All native built-in types; anything which is valid without imports
+	*/
+	  <!name=void>		"void"
+	| <!name=int8>		"int8"
+	| <!name=int16>		"int16"
+	| <!name=int32>		"int32"
+	| <!name=int64>		"int64"
+	| <!name=uint8>		"uint8"
+	| <!name=uint16>	"uint16"
+	| <!name=uint32>	"uint32"
+	| <!name=uint64>	"uint64"
+	| <!name=float>		"float"
+	| <!name=double>	"double" 
+	| <!name=boolean>	"boolean"
+	| <!name=char>		"char"
+	| <!name=string>	"string"
+
+UserType ::=
+	/*
+		Types from imports, custom user created types, qualified, partially qualified or unqualified
+		
+		String
+		System.IO.FileStream
+		ClassName<T>.InnerClass<U>.Foo.Bar
+	*/
+	<!name=ref> QualifiedTypeName
+
+DynamicType ::=
+	/*
+		Types resolved at runtime, like JavaScript var or C# dynamic (and at compile time like C++ auto), perhaps C++ unions
+	
+		var foo = anytype;
+	*/
+	<!name=var> "var"
+
+StatementBlock ::=
+	"{" ( Statement )* "}"
+
+Statement ::=
+	  <!name=block>		StatementBlock
+	| <!name=expr>		statementExpression=Expression ";"
+	| <!name=var_decl>	VarDeclaration
+	| <!name=class>		ClassDeclaration ";"
+	| <!name=method>	MethodDeclaration ";"
+	| <!name=if>		"if" "(" Expression ")" Statement ( "else" Statement )?
+	| <!name=switch>	"switch" "(" Expression ")" "{"  ( SwitchBlockStatementGroup )*  ( SwitchLabel )* "}"
+	| <!name=try>		"try" Statement ( ( CatchClause )+ ( FinallyBlock )? | FinallyBlock )
+	| <!name=do>		"do" Statement "while" "(" Expression ")" ";"
+	| <!name=while>		"while" "(" Expression ")" Statement
+	| <!name=for>		"for" "(" ( VarDeclaration | ( ( forInit=Expression )? ";" ) ) ( forCondition=Expression )? ";" ( forUpdate=Expression )? ")" Statement
+	| <!name=for_in>	"for" "(" Type Identifier ":" Expression ")" Statement
+	| <!name=break>		"break" ";"
+	| <!name=continue>	"continue" ";"
+	| <!name=throw>		"throw" ( Expression )? ";"
+	| <!name=yield>		"yield" ( Expression )? ";"
+	| <!name=return>	"return" ( Expression )? ";"
+	| <!name=goto>		"goto" Identifier ";"
+	| <!name=label>		Identifier ":"
+
+SwitchBlockStatementGroup ::=
+	( SwitchLabel )+ ( Statement )+
+
+SwitchLabel ::=
+	"case" Expression ":"
+	| "default" ":"
+
+CatchClause ::=
+	"catch" "(" ( Type "|" )* Type Identifier ")" Statement
+
+FinallyBlock ::=
+	"finally" Statement
+
+Expression	::=
+	  <!name=primary>		<!prec=1>	Primary
+	| <!name=array>			<!prec=1>	Expression "[" Expression "]"
+	| <!name=property>		<!prec=1>	Expression "." Identifier ( TypeParameters )?
+	| <!name=call>			<!prec=1>	( prefixExp=Expression "." )? QualifiedTypeName "(" ( Expression ( "," Expression )* )? ( "," Ellipsis )? ")"
+	| <!name=new>			<!prec=1> 	"new" Type "(" ( Expression ( "," Expression )* )? ")"
+	| <!name=new_array>		<!prec=1>	"new" Type ( ( "[" Expression "]" )+ ( Dims )* | ( "[" Expression "]" )* ( Dims )+ )
+	| <!name=lambda>		<!prec=1>	"(" ( Type Identifier ( "," Type Identifier )* )? ")" "->" ( Expression | StatementBlock )
+	| <!name=postfix>		<!prec=2>	Expression token_bop=( "++" | "--" )
+	| <!name=prefix>		<!prec=3>	token_bop=( "++" | "--" | "+" | "-" | "!" | "~" ) Expression
+	| <!name=cast>			<!prec=3>	"(" Type ")" Expression
+	| <!name=mul_div_mod>	<!prec=4>	Expression token_bop=( "*" | "/" | "%" ) Expression
+	| <!name=add_sub>		<!prec=5>	Expression token_bop=( "+" | "-" ) Expression
+	| <!name=bit_shift>		<!prec=6>	Expression token_bop=( "<<" | ">>" | ">>>" ) Expression
+	| <!name=inequality>	<!prec=7>	Expression token_bop=( "<" | "<=" | ">" | ">=" ) Expression
+	| <!name=instanceof>	<!prec=7>	Expression "instanceof" Expression
+	| <!name=equality>		<!prec=8>	Expression token_bop=( "==" | "!=" ) Expression
+	| <!name=bitwise_and>	<!prec=9>	Expression "&" Expression
+	| <!name=bitwise_xor>	<!prec=10>	Expression "^" Expression
+	| <!name=bitwise_or>	<!prec=11>	Expression "|" Expression
+	| <!name=logical_and>	<!prec=12>	Expression "&&" Expression
+	| <!name=logical_or>	<!prec=13>	Expression "||" Expression 
+	| <!name=ternary>		<!prec=14>	Expression "?"<!assoc=right> Expression ":" Expression
+	| <!name=assignment>	<!prec=15>	Expression token_bop=( "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<=" | ">>=" | ">>>=" )<!assoc=right> Expression
+
+//		TODO: resolve ambiguity between multiexp and call parameters if we want to support multiexp in WSIL parser
+	| <!name=multiexp>		<!prec=16>	Expression ( "," Expression )+
+
+
+Primary ::=
+		/*
+			TypeParameters is to allow references to generic constructors and static members etc. The ideal solution would be to use QualifiedTypeName but that leads
+			to ambiguity that we could do without; this seems like a fair compromise
+		*/
+	  <!name=identifier>	Identifier ( TypeParameters )?
+	| <!name=integer>		IntegerLiteral
+	| <!name=float>			FloatingPointLiteral
+	| <!name=boolean>		BooleanLiteral
+	| <!name=char>			CharacterLiteral
+	| <!name=string>		StringLiteral
+	| <!name=textblock>		TextBlock
+	| <!name=parenexp>		"(" Expression ")"
+	| <!name=null>			NullLiteral
+	| <!name=this>			"this"
+
+BooleanLiteral ::=
+	  <!name=true>	"true"
+	| <!name=false>	"false"
+
+NullLiteral ::= "null"
+
+Identifier ::= <IDENTIFIER>
+
+IntegerLiteral ::= <INTEGER-LITERAL>
+
+FloatingPointLiteral ::= <FLOAT-LITERAL>
+
+CharacterLiteral ::= <CHARACTER-LITERAL>
+
+StringLiteral ::= <STRING-LITERAL>
+
+TextBlock ::= <TEXTBLOCK-LITERAL>
